@@ -1,0 +1,47 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Part 1: Statistical Analysis
+For the first part of this project, you'll mimic the methodology of the working paper ["Does Federally Subsidized Rental Housing Depress Neighborhood Property Values?"](https://furmancenter.org/research/publication/does-federally-subsidized-rental-housing-depress-neighborhood-property), building a statistical model to explore the effect on sales price of a home being within a half mile of an affordable housing development.
+
+1. Using the sf library, find the closest development to each home.
+
+```{r}
+library(dplyr)
+
+library(ggplot2)
+
+library(tidyverse)
+
+library(sf)
+
+```
+```{r}
+#bringing the data in
+sales  <-  read.csv('data/filtered_sales.csv')
+
+details  <-  read.csv('data/property_details.csv')
+
+lihtc  <-  read.csv('data/LIHTC.csv')
+
+barnes  <-  read.csv('data/barnes.csv')
+```
+```{r}
+sale_det <- left_join(sales, details, on = apn) %>%
+  mutate(centroid = str_remove_all(centroid, '[()]')) %>% 
+  separate(centroid, into = c('lon', 'lat'), sep = ',')  
+              
+sale_det
+
+```
+```{r}
+sale_det_sf <- st_as_sf(sale_det, coords = c("lon", "lat"))
+glimpse(sale_det_sf)
+```
+
+```{r}
+#need to look at barnes and lihtc and figure out how to combine key components
+```
+
