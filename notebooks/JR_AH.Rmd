@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(sf)
+library(tidyverse)
+```
+
+```{r}
+details = read.csv('../data/property_details.csv')
+```
+```{r}
+filteredSales <- read.csv('../data/filtered_sales.csv')
+```
+```{r}
+barnes = read.csv('../data/barnes.csv')
+```
+```{r}
+lihtc = read.csv('../data/LIHTC.csv')
+```
+
+```{r}
+
+```
+
