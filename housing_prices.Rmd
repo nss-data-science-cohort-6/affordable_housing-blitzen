@@ -1,0 +1,52 @@
+---
+title: "Affordable_housing_blitzen"
+output: R_project 
+---
+
+## Part 1: Statistical Analysis
+1. Using the sf library, find the closest development to each home. Hint: You can convert a tibble to an sf object using the [`st_as_sf`
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tibble)
+library(data.table)
+library(leaflet)
+library(htmltools)
+library(scales)
+library(sf)
+```
+
+#reading the data 
+```{r}
+barnes <- read_csv('data/barnes.csv')
+sales <- read_csv('data/filtered_sales.csv')
+davidson <- read_csv('data/LIHTC.csv')
+details <- read_csv('data/property_details.csv')
+```
+#Checking the dataframes
+```{r}
+print(barnes)
+```
+```{r}
+print(sales)
+```
+```{r}
+davidson
+```
+```{r}
+details
+```
+#merging tables to be able to transform it into a sf 
+```{r}
+housing_dev <- sales %>%
+  select(apn, amount, ownerdate)
+
+housing_dev%>%
+   left_join(details)
+```
+
+
+
