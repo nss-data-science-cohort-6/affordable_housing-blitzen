@@ -11,37 +11,172 @@ For the first part of this project, you'll mimic the methodology of the working 
 ```{r}
 library(dplyr)
 
-library(ggplot2)
-
 library(tidyverse)
 
 library(sf)
 
 ```
+
 ```{r}
 #bringing the data in
 sales  <-  read.csv('data/filtered_sales.csv')
 
 details  <-  read.csv('data/property_details.csv')
 
-lihtc  <-  read.csv('data/LIHTC.csv')
+lihtc  <-  read.csv('data/LIHTC_updated.csv')
 
 barnes  <-  read.csv('data/barnes.csv')
 ```
+
 ```{r}
+#removing duplicate rows from the sales table
+sales <- sales %>% filter(!duplicated(.)) #distinct is another method to consider here
+
+#creating a sale year column
+sales <- sales %>% 
+          mutate(sale_yr = str_extract(ownerdate, "([0-9]{4})"),
+                 sale_yr = as.integer(sale_yr))
+
+glimpse(sales)
+```
+
+
+```{r}
+#separate out the lat and lon from the centroid column in the details df
 sale_det <- left_join(sales, details, on = apn) %>%
   mutate(centroid = str_remove_all(centroid, '[()]')) %>% 
   separate(centroid, into = c('lon', 'lat'), sep = ',')  
-              
-sale_det
 
-```
-```{r}
-sale_det_sf <- st_as_sf(sale_det, coords = c("lon", "lat"))
+#turning the sale_det df into an sf object              
+sale_det_sf <- st_as_sf(sale_det, coords = c("lon", "lat"), remove = FALSE) %>% 
+                  mutate(lat = as.numeric(lat),
+                         lon = as.numeric(lon))
 glimpse(sale_det_sf)
+
 ```
 
 ```{r}
-#need to look at barnes and lihtc and figure out how to combine key components
+#simplifying the barnes and lihtc tables to allow combining
+barnes_r = barnes %>% 
+            transmute(
+              li_id = str_c("TN", str_replace_all(Affordability.Term.Start.Date, "-", ""), sep = ""),
+              li_addr = Street.Address,
+              li_city = City,
+              li_zip = Zip.Code,
+              li_start_date = Affordability.Term.Start.Date, 
+              li_total_units = Total.units, 
+              li_units = Barnes.funded.units,
+              li_lat = lat,
+              li_lng = lng) %>% 
+            mutate(li_origin = "barnes",
+                   li_addr = str_to_upper(li_addr))
+
+lihtc_r = lihtc %>% 
+            transmute(
+              li_id = HUD_ID,
+              li_addr = PROJ_ADD, 
+              li_city = PROJ_CTY,
+              li_zip = PROJ_ZIP,
+              li_start_date = YR_PIS, 
+              li_total_units = N_UNITSR, 
+              li_units = LI_UNITR,
+              li_lat = LATITUDE,
+              li_lng = LONGITUDE) %>% 
+            mutate(li_origin = "lihtc") %>% 
+            filter(li_start_date != 8888)%>% #removing developments not confirmed as in service
+            transform(li_start_date = as.character(li_start_date))
+
+lihtc_r$li_start_date <- str_replace(lihtc_r$li_start_date, "9999", "2015") #replacing the instance when there is a 9999 in this column with the year noted in the YR_ALLOC column
 ```
+
+```{r}
+#putting the 2 low income dataframes together
+li_dev = bind_rows(barnes_r, lihtc_r) %>% 
+          mutate(li_start_yr = str_extract(li_start_date, "([0-9]{4})"),
+                 li_start_yr = as.integer(li_start_yr))
+glimpse(li_dev)
+```
+
+
+```{r}
+#checking out properties with duplicate lat and lon values
+dup_ll <- li_dev %>% 
+  select(li_lat, li_lng) %>% 
+  filter(duplicated(.))
+
+li_dev %>% filter(li_lat %in% dup_ll$li_lat & li_lng %in% dup_ll$li_lng) %>% arrange(desc(li_lat))
+```
+After investigating all of the above, these are multiple units in the same location, not actual duplicates
+
+
+```{r}
+dup_addr = li_dev %>% select(li_addr) %>% filter(duplicated(.)) 
+
+li_dev %>% filter(li_addr %in% dup_addr$li_addr) %>% arrange(li_addr)
+```
+After some research, it appears the date of 2019 is the accurate date for the Old Hickory development, so I will drop the barnes entry for it.
+```{r}
+li_dev <- li_dev %>% 
+            filter(!(li_addr == "5636 OLD HICKORY BLVD" & li_origin == "barnes"))
+```
+
+This data frame is now in good shape to convert to an sf object
+```{r}
+li_dev_sf <- st_as_sf(li_dev, coords = c("li_lng", "li_lat"), remove=FALSE)
+glimpse(li_dev_sf)
+```
+
+Now, find the low-income development nearest to each home that was sold
+```{r}
+#spatial join using the nearest function as the join type
+sales_li <- st_join(sale_det_sf, li_dev_sf, join = st_nearest_feature)
+glimpse(sales_li)
+```
+
+2. Calculate the distance from each home its closest development.
+```{r}
+#after some research, the distVincentyEllipsoid function is considered the most accurate, so bringing in the relavent library to find the distances
+library(geosphere)
+
+sales_li$dist <- distVincentyEllipsoid(cbind(sales_li$lon, sales_li$lat), 
+                                       cbind(sales_li$li_lng, sales_li$li_lat))/1609.344 #converting the distance from meters to miles
+```
+
+3. Filter the homes down to those that are within one mile of an affordable housing development.
+```{r}
+nearli_sales <- sales_li %>% 
+                  filter(dist <= 1)
+glimpse(nearli_sales)
+```
+
+4. For each remaining home, calculate a new column called "group", which is defined according to the following rules. Hint: Use the `case_when` function to do this.  
+	* "pre" - for homes where the distance is less than half a mile and whose sale date was 2-5 years prior to the year the development was placed in service  
+	* "mid" - for homes where the distance is less than half a mile and whose sale date was 0-2 years prior to the year the development was placed in service  
+	* "post" - for homes where the distance is less than half a mile and whose sale date was after the year the development was placed in service   
+	* "outside" - for homes where the distance is more than half a mile and whose sale date was no more than 5 years prior to the year the development was placed in service   
+	* "other" - All other rows 
+```{r}
+nearli_sales <- nearli_sales %>% 
+                  mutate(group = case_when(dist < 0.5 & sale_yr >= (li_start_yr-5) & sale_yr <= (li_start_yr-2) ~ "pre",
+                                           dist < 0.5 & sale_yr > (li_start_yr-2) & sale_yr <= li_start_yr ~ "mid",
+                                           dist < 0.5 & sale_yr > li_start_yr ~ "post",
+                                           dist >= 0.5 & sale_yr >= (li_start_yr-5) ~ "outside",
+                                           TRUE ~ "other"))
+nearli_sales %>% 
+  group_by(group) %>% 
+  count()
+```
+
+5. Filter out all rows whose group is "other".
+```{r}
+nearli_sales <- nearli_sales %>% 
+                  filter(group != "other")
+```
+6. Add an id column containing the id value for the development. - already in there
+
+7. Create a column "Tpost" that, for homes in the "post" group gives the number of years that the sale occurred after the housing development was placed in service.
+```{r}
+
+```
+
 
