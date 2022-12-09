@@ -175,8 +175,62 @@ nearli_sales <- nearli_sales %>%
 6. Add an id column containing the id value for the development. - already in there
 
 7. Create a column "Tpost" that, for homes in the "post" group gives the number of years that the sale occurred after the housing development was placed in service.
+8. Create a column named "age" which gives the age of the home at the time of sale.
+9. Filter down to only sales that took place within the five years before or after the associated development was placed in service.
+```{r}
+nearli_5yr_sales <- nearli_sales %>% 
+                      mutate(Tpost = sale_yr - li_start_yr,
+                             age = sale_yr - year_built,
+                             tract = as.character(tract)) %>% 
+                      filter(Tpost <= 5 & Tpost >= -5)
+glimpse(nearli_5yr_sales)
+```
+
+Then build a linear model with target variable the sales amount using the following features:
+	- square_footage
+	- age of home at time of sale
+	- group
+	- year 
+	- tract
+```{r}
+reg1 <- lm(amount ~ square_footage + age + group + sale_yr + tract,
+           data = nearli_5yr_sales)
+summary(reg1)
+```
+Interpreting these coefficients:
+sale amount = -1.353e+07 + 55.4(square footage) - 611.2(house age) - (value associated w/ relevant group) + 7252(sale_yr)                 - (value associated w/ relevant tract)
+
+10. Now, try a model with target being the log of the sale price.
+	- square_footage
+	- age of home at time of sale
+	- group
+	- year
+	- tract
+```{r}
+reg2 <- lm(log(amount) ~ square_footage + age + group + sale_yr + tract,
+              data = nearli_5yr_sales)
+summary(reg2)
+```
+Interpreting these coefficients:
+log(sale amount) = -77.21 + 0.0002672(square footage) - 0.001800(house age) + (value associated w/ relevant group*) 
+                  + 0.04434(sale_yr) + (value associated w/ relevant tract*)
+*unlike in reg1, some of these values are positive, others are negative
+
+
+11. Continue to explore the data to see if you can improve the models you have.
+I messed around with adding/removing/substituting a variety of variables. I found the combination below to yeild the highest Adjusted R-squared value. I will note that removing group does not drop the value by much (.0006) and the same with age (.0023)
+
 ```{r}
 
+reg3 <- lm(log(amount) ~ square_footage + age + sale_yr + group + tract + li_id,
+              data = nearli_5yr_sales)
+summary(reg3)
 ```
+
+```{r}
+#saveRDS(nearli_sales, file = "data/nearli_sales.rds")
+```
+
+
 
 

@@ -1,0 +1,38 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+
+library(tidyverse)
+
+library(sf)
+
+```
+
+**Bonus:** [Assessing the Impact of Affordable Housing on Nearby Property Values in Alexandria, Virginia](https://www.urban.org/research/publication/assessing-impact-affordable-housing-nearby-property-values-alexandria-virginia) also looks at the impact of affordable housing developments on nearby property values, but uses a different model which focuses only on homes that were sold both before and after the development was placed in service. Use a similar setup to analyze the data from Davidson County.
+```{r}
+nearli_sales <- readRDS("data/nearli_sales.rds")
+```
+
+
+```{r}
+dup_apn <- nearli_sales %>% select(apn) %>% filter(duplicated(.))
+
+nearli_multisales <- nearli_sales %>% filter(apn %in% dup_apn$apn)
+
+nearli_presales <- nearli_multisales %>% group_by(apn) %>% slice_min(sale_yr, n=1) %>% filter(sale_yr < li_start_yr)
+
+nearli_postsales <- nearli_multisales %>% group_by(apn) %>% slice_max(sale_yr, n=1) %>% filter(sale_yr > li_start_yr)
+```
+
+```{r}
+prepost_apn <- st_join(nearli_presales %>% select(apn), 
+                       nearli_postsales %>% select(apn), 
+                       join = st_equals) %>% 
+                  drop_na() 
+
+nearli_prepost <- nearli_multisales %>% filter(apn %in% prepost_apn$apn.x)
+```
