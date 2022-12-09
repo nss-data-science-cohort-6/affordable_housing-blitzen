@@ -21,11 +21,17 @@ library(sf)
 
 #reading the data 
 ```{r}
-barnes <- read_csv('data/barnes.csv')
-sales <- read_csv('data/filtered_sales.csv')
-davidson <- read_csv('data/LIHTC.csv')
-details <- read_csv('data/property_details.csv')
+barnes <- read.csv('data/barnes.csv')
+sales <- read.csv('data/filtered_sales.csv')
+lihtc <- read.csv('data/LIHTC.csv')
+details <- read.csv('data/property_details.csv')
 ```
+#Removing Duplicates
+```{r}
+sales <- sales %>% filter(!duplicated(.))
+```
+
+
 #Checking the dataframes
 ```{r}
 print(barnes)
@@ -34,19 +40,78 @@ print(barnes)
 print(sales)
 ```
 ```{r}
-davidson
+lihtc 
 ```
 ```{r}
 details
 ```
-#merging tables to be able to transform it into a sf 
+#merging Sales and  tables to be able to transform it into a sf 
 ```{r}
 housing_dev <- sales %>%
   select(apn, amount, ownerdate)
 
-housing_dev%>%
+housing_dev <- housing_dev %>%
    left_join(details)
 ```
+```{r}
+housing_dev
+```
+#Separating the centroid column, and removing (), and comas 
+```{r}
+housing_dev <- housing_dev %>%
+mutate(centroid = str_remove_all(centroid, '[()]'))
 
+ housing_dev[c('lng', 'lat')] <-
+   str_split_fixed(housing_dev$centroid, ',', 2)
+```
 
+```{r}
+housing_dev
+```
+#Converting the data into SF. 
+```{r}
+housing_dev_sf <- st_as_sf (housing_dev, coords = c("lng", "lat"), remove = FALSE)%>%
+   mutate(lat = as.numeric(lat),
+          lng = as.numeric(lng))
+```
+
+# Fixing the data from Davidson (LIHTC) and barnes to be able to merge them
+
+```{r}
+barnes_r <- barnes%>%
+  transmute(
+    address = Street.Address,
+    city = City,
+    zipcode = Zip.Code,
+    start_date = Affordability.Term.Start.Date,
+    total = Total.units,
+    units = Barnes.funded.units,
+    lat = lat,
+    lng = lng
+  )
+barnes_r
+```
+
+```{r}
+lihtc_r <- lihtc %>%
+   transmute(
+    id = HUD_ID,
+    address = PROJ_ADD, 
+    city = PROJ_CTY,
+    zipcode = PROJ_ZIP,
+    start_date = YR_PIS,
+    total = N_UNITSR,
+    units = LI_UNITR,
+    lat = LATITUDE,
+    lng = LONGITUDE
+  )
+lihtc_r
+```
+
+#joining low income Tibbles 
+```{r}
+income_dev = bind_rows(barnes_r, lihtc_r) 
+
+income_dev
+```
 
