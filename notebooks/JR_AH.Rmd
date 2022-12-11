@@ -169,8 +169,38 @@ nearli_sales <- nearli_sales %>%
 # 6. Add an id column containing the id value for the development. Already done = see li_id column
 
 # 7. Create a column "Tpost" that, for homes in the "post" group gives the number of years that the sale occurred after the housing development was placed in service.
+#8. Create a column named "age" which gives the age of the home at the time of sale.
+#9. Filter down to only sales that took place within the five years before or after the associated development was placed in service.
 ```{r}
-nearli_sales$Tpost <- sales_yr - li_start_yr
+nearli_5yr_sales <- nearli_sales %>% 
+                      mutate(Tpost = sale_yr - li_start_yr,
+                             age = sale_yr - year_built,
+                             tract = as.character(tract)) %>% 
+                      filter(Tpost <= 5 & Tpost >= -5)
+glimpse(nearli_5yr_sales)
                       
+```
+# Then build a linear model with target variable the sales amount using the following features:
+#square_footage, age of home at time of sale, group, year, tract. How can you interpret the coefficients of this model?
+```{r}
+reg1 <- lm(amount ~ square_footage + age + group + sale_yr + tract,
+           data = nearli_5yr_sales)
+summary(reg1)
+```
+# Coefficient interpretation: sale amount = -1.346e+07 + 55.48(square footage) - 605.3(house age) - (value associated w/ relevant group) + 7217(sale_yr) - (value associated w/ relevant tract)
+
+# 10. Now, try a model with target being the log of the sale price: square_footage, age of home at time of sale, group, year, tract.
+```{r}
+reg2 <- lm(log(amount) ~ square_footage + age + group + sale_yr + tract,
+              data = nearli_5yr_sales)
+summary(reg2)
+```
+#How can you interpret the coefficients of this model? 
+# Coefficient interpretation: log(sale amount) = -76.73 + 0.0002679(square footage) - 0.001777(house age) + (value associated w/ relevant group*) + 0.04410(sale_yr) + (value associated w/ relevant tract*)
+# * some values are positive, others are negative
+
+# Continue to explore the data to see if you can improve the models you have.
+```{r}
+
 ```
 
