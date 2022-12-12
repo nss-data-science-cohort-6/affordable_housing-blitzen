@@ -31,48 +31,39 @@ details <- read.csv('data/property_details.csv')
 sales <- sales %>% filter(!duplicated(.))
 ```
 
+```{r}
+sales <- sales%>%
+   mutate(sales_year = str_extract(ownerdate, "([0-9]{4})"),
+         sales_year = as.integer(sales_year))
+sales
+```
 
-#Checking the dataframes
-```{r}
-print(barnes)
-```
-```{r}
-print(sales)
-```
-```{r}
-lihtc 
-```
+
 ```{r}
 details
 ```
+```{r}
+details <-
+  subset(details, select = -c(story_height, foundation_type, number_of_rooms, number_of_beds, number_of_baths, number_of_half_bath))
+```
 #merging Sales and  tables to be able to transform it into a sf 
 ```{r}
-housing_dev <- sales %>%
-  select(apn, amount, ownerdate)
-
-housing_dev <- housing_dev %>%
-   left_join(details)
-```
-```{r}
-housing_dev
-```
-#Separating the centroid column, and removing (), and comas 
-```{r}
-housing_dev <- housing_dev %>%
-mutate(centroid = str_remove_all(centroid, '[()]'))
-
- housing_dev[c('lng', 'lat')] <-
-   str_split_fixed(housing_dev$centroid, ',', 2)
+housing_dev <- left_join(sales, details, on = apn) %>%
+  mutate(centroid = str_remove_all(centroid, '[()]')) %>% 
+  separate(centroid, into = c('lng', 'lat'), sep = ',')  
 ```
 
+
 ```{r}
-housing_dev
+housing_dev 
 ```
+
 #Converting the data into SF. 
 ```{r}
 housing_dev_sf <- st_as_sf (housing_dev, coords = c("lng", "lat"), remove = FALSE)%>%
    mutate(lat = as.numeric(lat),
           lng = as.numeric(lng))
+housing_dev_sf
 ```
 
 # Fixing the data from Davidson (LIHTC) and barnes to be able to merge them
@@ -88,9 +79,13 @@ barnes_r <- barnes%>%
     units = Barnes.funded.units,
     lat = lat,
     lng = lng
-  )
+  )%>%
+   mutate(origin = "barnes",
+                   address = str_to_upper(address))
+
 barnes_r
 ```
+
 
 ```{r}
 lihtc_r <- lihtc %>%
@@ -99,19 +94,156 @@ lihtc_r <- lihtc %>%
     address = PROJ_ADD, 
     city = PROJ_CTY,
     zipcode = PROJ_ZIP,
-    start_date = YR_PIS,
+   start_date = YR_PIS,
     total = N_UNITSR,
     units = LI_UNITR,
     lat = LATITUDE,
     lng = LONGITUDE
-  )
+ )%>%
+  mutate(origin = "lihtc") %>% 
+  filter(start_date != 8888)%>%
+  transform(start_date = as.character(start_date))
+
+lihtc_r$start_date <- str_replace(lihtc_r$start_date, "9999", "2015")
 lihtc_r
 ```
 
 #joining low income Tibbles 
 ```{r}
-income_dev = bind_rows(barnes_r, lihtc_r) 
+income = bind_rows(barnes_r, lihtc_r)%>%
+  
+  mutate(start_year = str_extract(start_date, "([0-9]{4})"),
+                 start_year = as.numeric(start_year))
 
-income_dev
+glimpse(income)
+
 ```
+```{r}
+income
+```
+#Converting the tibble to a Sf object. 
+```{r}
+income_sf <- st_as_sf(income, coords = c("lng", "lat"), remove = FALSE)
+income_sf
+```
+#Finding the nearest low-income development to each home was sold. 
+```{r}
+nearest_home <- st_join(housing_dev_sf, income_sf, join = st_nearest_feature)
+glimpse(nearest_home)
+```
+
+2. Calculate the distance from each home its closest development.
+```{r}
+library(geosphere)
+
+nearest_home$dist <- distVincentyEllipsoid(cbind(nearest_home$lng.x, nearest_home$lat.x), 
+                                       cbind(nearest_home$lng.y, nearest_home$lat.y))/1609.344
+
+nearest_home
+```
+I calculated geodesic distance (in m) between two points specified by latitude/longitude 
+#* (in numeric degrees) using Vincenty inverse formula for ellipsoids
+# source https://gis.stackexchange.com/questions/92517/calculating-distance-between-points-crossing-antimeridian-using-r 
+
+
+3. Filter the homes down to those that are within one mile of an affordable housing development. 
+```{r}
+affordable_housing_dev <- nearest_home%>%
+  filter(dist <=1)
+affordable_housing_dev
+```
+
+4. For each remaining home, calculate a new column called "group", which is defined according to the following rules. Hint: Use the case_when function to do this.
+- "pre" - for homes where the distance is less than half a mile and whose sale  date was 2-5 years prior to the input year
+- "mid" - for homes where the distance is less than half a mile and whose sale date was 0-2 years prior to the input year
+- "post" - for homes where the distance is less than half a mile and whose sale date was after the input year
+- "outside" - for homes where the distance is more than half a mile and whose sale date was no more than 5 years prior to the input year
+- "other" - All other rows
+
+
+```{r}
+affordable_housing_dev <- affordable_housing_dev%>%
+  mutate(
+    group = case_when(dist < 0.5 & sales_year >= (start_year-5) & sales_year < (start_year-2) ~ 'pre', 
+                            dist < 0.5 & sales_year > (start_year <= sales_year) & (start_year -2) ~ 'mid',
+                            dist < 0.5 & sales_year  > start_year ~ 'post',
+                            dist >= 0.5 & sales_year >= (sales_year-5) ~ 'outside',
+                            TRUE ~ 'other'))
+affordable_housing_dev%>%
+  group_by(group) %>% 
+  count()
+```
+#*source: https://dplyr.tidyverse.org/reference/case_when.html
+
+5. Filter out all rows whose group is "other".
+```{r}
+affordable_housing_dev <- affordable_housing_dev %>% 
+                  filter(group != "other")
+```
+
+
+6. Add an id column containing the id value for the development.
+
+I have an ID column already :D
+
+7. Create a column "Tpost" that, for homes in the "post" group gives the number of years that the sale occurred after the housing development was placed in service.
+
+```{r}
+affordable_housing_dev$Tpost <-
+  ifelse(affordable_housing_dev$group == "post", 
+         (affordable_housing_dev$sales_year) - affordable_housing_dev$start_year,
+         NA)
+affordable_housing_dev
+```
+
+#8. Create a column named "age" which gives the age of the home at the time of sale.
+```{r}
+affordable_housing_dev$age <- as.numeric((affordable_housing_dev$sales_year) - affordable_housing_dev$year_built)
+affordable_housing_dev
+```
+
+#9. Filter down to only sales that took place within the five years before or after the associated development was placed in service.
+```{r}
+five_year <- affordable_housing_dev%>%
+  mutate(Tpost = sales_year - start_year,
+                             age = sales_year - year_built,
+                             tract = as.character(tract)) %>% 
+                      filter(as.numeric(Tpost) <= 5 & as.numeric(Tpost >= -5))
+five_year
+```
+
+#Then build a linear model with target variable the sales amount using the following features:
+# 	- square_footage (num)
+# 	- age of home at time of sale (num)
+# 	- group (factor)
+# 	- year (num)
+# 	- tract (factor)
+# How can you interpret the coefficients of this model?
+
+```{r}
+sale_linear_model <- lm(amount ~ square_footage + age + group + sales_year + tract,
+           data = five_year)
+
+summary(linear_model)
+```
+#Source: https://www.r-bloggers.com/2020/05/step-by-step-guide-on-how-to-build-linear-regression-in-r-with-code/
+
+- tract How can you interpret the coefficients of this model?
+
+10. Now, try a model with target being the log of the sale price.
+square_footage
+age of home at time of sale
+group
+year
+tract How can you interpret the coefficients of this model?
+- 
+
+```{r}
+log_sale <- lm(log(amount) ~ square_footage + age + group + sales_year + tract,
+           data = five_year)
+summary(log_sale)
+```
+
+
+
 
