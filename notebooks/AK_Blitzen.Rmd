@@ -3,21 +3,209 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+## Part 1: Statistical Analysis
+For the first part of this project, you'll mimic the methodology of the working paper ["Does Federally Subsidized Rental Housing Depress Neighborhood Property Values?"](https://furmancenter.org/research/publication/does-federally-subsidized-rental-housing-depress-neighborhood-property), building a statistical model to explore the effect on sales price of a home being within a half mile of an affordable housing development.
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+1. Using the sf library, find the closest development to each home.
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(sf)
+```
+
+```{r}
+#bringing the data in
+sales  <-  read.csv('../data/filtered_sales.csv')
+details  <-  read.csv('../data/property_details.csv')
+lihtc  <-  read.csv('../data/LIHTC.csv')
+barnes  <-  read.csv('../data/barnes.csv')
+```
+
+```{r}
+#removing duplicate rows from the sales table
+sales <- sales %>% filter(!duplicated(.)) 
+
+
+#create column sale year
+sales <- sales %>% 
+          mutate(sale_yr = str_extract(ownerdate, "([0-9]{4})"),
+               sale_yr = as.integer(sale_yr))
+
+```
 
 
 ```{r}
-library(sf)
-library(tidyverse)
+#split centroid for lat and lon
+sale_details <- left_join(sales, details, on = apn) %>%
+  mutate(centroid = str_remove_all(centroid, '[()]')) %>% 
+  separate(centroid, into = c('lon', 'lat'), sep = ',')  
+
+#Convert sales_details_df to st_as_sf 
+
+sale_details_sf <- st_as_sf(sale_details, coords = c("lon", "lat"), remove = FALSE) %>% 
+                  mutate(lat = as.numeric(lat),
+                         lon = as.numeric(lon))
+glimpse(sale_details_sf)
+```
+
+```{r}
+#rename the similar columns in barnes and lihtc tables to prepare for merge
+barnes_r = barnes %>% 
+            transmute(
+              li_source='barnes',
+              li_id=str_c("TN", str_replace_all(Affordability.Term.Start.Date, "-", ""), sep = ""),
+              li_year=Barnes.Year,
+              li_address=str_to_upper(Street.Address),
+              li_total_units=Total.units,
+              li_units=Barnes.funded.units,
+              li_city=City,
+              li_zip=Zip.Code,
+              li_lat=lat,
+              li_lng=lng) 
+
+lihtc_r = lihtc %>% 
+  transmute(  li_source='lihtc',
+              li_id=HUD_ID,
+              li_year=YR_PIS,
+              li_address=PROJ_ADD,
+              li_total_units=N_UNITS,
+              li_units=LI_UNITS,
+              li_city=PROJ_CTY,
+              li_zip=PROJ_ZIP,
+              li_lat=LATITUDE,
+              li_lng=LONGITUDE) 
+```
+
+
+
+
+
+```{r}
+#Merge 2 li dataframes
+li_dev <- union(barnes_r,lihtc_r) %>% 
+
+mutate(li_year = str_extract(li_year, "([0-9]{4})"),
+                 li_year = as.integer(li_year))
+
+
+glimpse(li_dev)
+```
+
+
+
+
+
+
+
+Use st_as_sf function to make sf object
+```{r}
+li_dev_sf <- st_as_sf(li_dev, coords = c("li_lng", "li_lat"), remove=FALSE)
+
+```
+
+find the closest li development to each home
+```{r}
+#spatial join using the nearest function as the join type
+sales_li <- st_join(sale_details_sf, li_dev_sf, join = st_nearest_feature)
+
+```
+
+2. Calculate the distance from each home its closest development.
+```{r}
+#use geosphere, the distVincentyEllipsoid function  to find the distances
+#Install before using it
+library(geosphere)
+sales_li$dist <- distVincentyEllipsoid(cbind(sales_li$lon, sales_li$lat), 
+                                       cbind(sales_li$li_lng, sales_li$li_lat))/1609.344 #converting the distance from meters to miles
+```
+
+3. Filter the homes down to those that are within one mile of an affordable housing development.
+```{r}
+sales_and_li_in_mile <- sales_li %>% 
+                  filter(dist <= 1)
+glimpse(sales_and_li_in_mile)
+```
+```{r}
+# 4. For each remaining home, calculate a new column called "group", which is defined according to the following rules. Hint: Use the `case_when` function to do this.  
+# 	* "pre" - for homes where the distance is less than half a mile and whose sale date was 2-5 years prior to the input year  
+# 	* "mid" - for homes where the distance is less than half a mile and whose sale date was 0-2 years prior to the input year  
+# 	* "post" - for homes where the distance is less than half a mile and whose sale date was after the input year  
+# 	* "outside" - for homes where the distance is more than half a mile and whose sale date was no more than 5 years prior to the input year  
+# 	* "other" - All other rows  
+
+
+
+sales_li_closeby <- sales_and_li_in_mile %>% 
+                  mutate(group = case_when(dist < .5 & sale_yr >= (li_year-5) & sale_yr <= (li_year-2) ~ "pre",
+                                           dist < .5 & sale_yr > (li_year-2) & sale_yr <= li_year ~ "mid",
+                                           dist < .5 & sale_yr > li_year ~ "post",
+                                           dist >= .5 & sale_yr >= (li_year-5) ~ "outside",
+                                           TRUE ~ "other"
+                                           )
+                         )
+
+```
+#5. Filter out all rows whose group is "other".
+```{r}
+
+sales_li_closeby <- filter(sales_li_closeby, group != 'other')
+
+
+```
+
+#6. Add an id column containing the id value for the development.
+#This I created in prior step
+
+#7. Create a column "Tpost" that, for homes in the "post" group gives the number of years that the sale occurred after 
+#the housing development was placed in service.
+
+```{r}
+sales_li_closeby <- sales_li_closeby %>% 
+                    mutate(Tpost = sale_yr - li_year)
+
+```
+#8. Create a column named "age" which gives the age of the home at the time of sale.
+```{r}
+sales_li_closeby <- sales_li_closeby %>% 
+                    mutate(age = sale_yr - year_built  )
+
+```
+
+
+```{r}
+# 9. Filter down to only sales that took place within the five years before or after the associated development was placed in service. Then build a linear model with target variable the sales amount using the following features:
+# 	- square_footage
+# 	- age of home at time of sale
+# 	- group
+# 	- year
+# 	- tract
+
+sales_li_closeby <- filter(sales_li_closeby, Tpost <= 5 &  Tpost >= -5)
+
+liner_reg <- lm(amount ~ square_footage + age + sale_yr + tract, data=sales_li_closeby )
+summary(liner_reg)
+
+#result
+#amount = -1.265e+07 + 8.047e+01(square_footage) - -2.981e+02(age) + 6.704e+03(sale_yr) - (tract)
+
+
 
 ```
 
 ```{r}
-barnes <- read_csv('../data/barnes.csv')
-filteredSales <- read_csv('../data/filtered_sales.csv')
-fullSales <- read_csv('../data/full_sales.csv')
-propertyDetails <- read_csv('../data/property_details.csv')
+
+# 10. Now, try a model with target being the log of the sale price.
+# 	- square_footage
+# 	- age of home at time of sale
+# 	- group
+# 	- year
+# 	- tract
+# How can you interpret the coefficients of this model?
+
+liner_reg_log <- lm(log(amount) ~ square_footage + age + sale_yr + tract, data=sales_li_closeby )
+summary(liner_reg_log)
+#result
+#amount = -7.100e+01 + 3.931e-04(square_footage) - -1.690e-03(age) + 4.064e-02(sale_yr) + (tract)
 ```
 
