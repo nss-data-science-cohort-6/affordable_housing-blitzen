@@ -10,6 +10,8 @@ library(tidyverse)
 
 library(sf)
 
+library(lme4)
+
 ```
 
 **Bonus:** [Assessing the Impact of Affordable Housing on Nearby Property Values in Alexandria, Virginia](https://www.urban.org/research/publication/assessing-impact-affordable-housing-nearby-property-values-alexandria-virginia) also looks at the impact of affordable housing developments on nearby property values, but uses a different model which focuses only on homes that were sold both before and after the development was placed in service. Use a similar setup to analyze the data from Davidson County.
@@ -19,13 +21,19 @@ nearli_sales <- readRDS("data/nearli_sales.rds")
 
 
 ```{r}
-dup_apn <- nearli_sales %>% select(apn) %>% filter(duplicated(.))
+dup_apn <- nearli_sales %>% filter(duplicated(apn)) %>% pull(apn)
 
-nearli_multisales <- nearli_sales %>% filter(apn %in% dup_apn$apn)
+nearli_multisales <- nearli_sales %>% filter(apn %in% dup_apn)
 
-nearli_presales <- nearli_multisales %>% group_by(apn) %>% slice_min(sale_yr, n=1) %>% filter(sale_yr < li_start_yr)
-
-nearli_postsales <- nearli_multisales %>% group_by(apn) %>% slice_max(sale_yr, n=1) %>% filter(sale_yr > li_start_yr)
+nearli_presales <- nearli_multisales %>% 
+  group_by(apn) %>% 
+  slice_min(sale_yr, n=1) %>% 
+  filter(sale_yr < li_start_yr)
+  
+nearli_postsales <- nearli_multisales %>% 
+  group_by(apn) %>% 
+  slice_max(sale_yr, n=1) %>% 
+  filter(sale_yr > li_start_yr)
 ```
 
 ```{r}
@@ -36,3 +44,128 @@ prepost_apn <- st_join(nearli_presales %>% select(apn),
 
 nearli_prepost <- nearli_multisales %>% filter(apn %in% prepost_apn$apn.x)
 ```
+
+```{r}
+glimpse(nearli_prepost)
+  
+```
+
+
+```{r}
+nearli_prepost <- nearli_prepost %>% 
+  filter(sale_yr != li_start_yr) %>% 
+  mutate(group = case_when(dist <= 0.25 & sale_yr < li_start_yr ~ "near_pre",
+                           dist <= 0.25 & sale_yr > li_start_yr ~ "near_post",
+                           dist <= 0.5 & sale_yr < li_start_yr ~ "nmid_pre",
+                           dist <= 0.5 & sale_yr > li_start_yr ~ "nmid_post",
+                           dist <= 0.75 & sale_yr < li_start_yr ~ "fmid_pre",
+                           dist <= 0.75 & sale_yr > li_start_yr ~ "fmid_post",
+                           dist > 0.75 & sale_yr < li_start_yr ~ "far_pre",
+                           dist > 0.75 & sale_yr > li_start_yr ~ "far_post"),
+         group = factor(group),
+         sc_sale_yr = sale_yr - 1995
+         )
+
+nearli_prepost %>% 
+  group_by(group) %>% 
+  count()
+```
+
+```{r}
+glimpse(nearli_prepost)
+```
+
+
+```{r}
+lmer_reg <- lmer('log(amount) ~  sc_sale_yr + (1|li_id/apn)',
+                 #REML=TRUE,
+                 data = nearli_prepost 
+                 )
+
+summary(lmer_reg)
+```
+
+```{r}
+nearli_prepost %>% 
+  mutate(predicted = predict(lmer_reg, newdata = nearli_prepost )) %>%
+  ggplot(aes(x = log(amount), y = predicted, color = group)) +
+    geom_point(na.rm = TRUE) +
+    scale_x_continuous(limits = c(6, 18)) +
+    scale_y_continuous(limits = c(6, 18))
+```
+
+```{r}
+nearli_prepost %>% filter(group == 'near_pre' | group == 'near_post') %>% 
+  mutate(predicted = predict(lmer_reg, newdata = nearli_prepost%>% filter(group == 'near_pre' | group == 'near_post') )) %>%
+  ggplot(aes(x = log(amount), y = predicted, color = group)) +
+    geom_point(na.rm = TRUE) +
+    scale_x_continuous(limits = c(6, 18)) +
+    scale_y_continuous(limits = c(6, 18))
+```
+
+
+```{r}
+comp_pre <- nearli_presales %>% 
+  transmute(apn, pre_sale_yr = sale_yr, pre_amount = amount, li_id, dist) %>% 
+  filter(!duplicated(apn))
+
+comp_post <- nearli_postsales %>% 
+  select(apn, post_sale_yr = sale_yr, post_amount = amount) %>% 
+  filter(!duplicated(apn))
+
+comp  <- st_join(comp_pre,
+                       comp_post,
+                       join = st_equals) %>%
+  drop_na() %>% 
+  mutate(amount_dif = post_amount - pre_amount,
+         rate_dif = (amount_dif * 100) / pre_amount,
+         yr_dif = post_sale_yr - pre_sale_yr,
+         yr_rate_dif = rate_dif / yr_dif,
+         group = case_when(dist <= 0.25  ~ "near",
+                           dist > 0.25 & dist <= 0.5 ~ "nmid",
+                           dist > 0.5 & dist <= 0.75 ~ "fmid",
+                           dist > 0.75 ~ "far"),
+         group = factor(group)
+         ) %>%
+  drop_na() 
+         
+glimpse(comp)
+
+```
+
+
+
+```{r}
+comp %>%   
+ggplot(aes(y = rate_dif, x = yr_dif, color = group)) +
+    geom_point(na.rm = TRUE)
+```
+
+```{r}
+comp %>% group_by(group) %>% summarize(mean = mean(yr_rate_dif))
+```
+
+
+```{r}
+comp %>% 
+  group_by(group) %>% 
+  count()
+```
+
+
+```{r}
+lmer_reg_comp <- lmer(amount_dif ~  yr_dif  + relevel(group, ref = 'near') + (1|li_id),
+                 REML=TRUE,
+                 data = comp)
+
+summary(lmer_reg_comp)
+```
+
+```{r}
+lmer_reg_comp <- lmer(rate_dif ~  yr_dif  + relevel(group, ref = 'near') + (1|li_id),
+                 REML=TRUE,
+                 data = comp)
+
+summary(lmer_reg_comp)
+```
+
