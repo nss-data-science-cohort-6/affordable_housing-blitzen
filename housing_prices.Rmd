@@ -224,7 +224,7 @@ five_year
 sale_linear_model <- lm(amount ~ square_footage + age + group + sales_year + tract,
            data = five_year)
 
-summary(linear_model)
+summary(sale_linear_model)
 ```
 #Source: https://www.r-bloggers.com/2020/05/step-by-step-guide-on-how-to-build-linear-regression-in-r-with-code/
 
