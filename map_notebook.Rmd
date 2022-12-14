@@ -1,0 +1,62 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(htmltools)
+library(scales)
+```
+```{r}
+nearli_5yr_sales <- readRDS("data/nearli_5yr_sales.rds")
+glimpse(nearli_5yr_sales)
+```
+
+```{r}
+# Create tooltip labels
+nearli_5yr_sales$label <- 
+  paste0("<b>Sale Date:</b> ", nearli_5yr_sales$ownerdate, "<br>",
+         "<b>Sale Amount:</b> ", str_c('$', nearli_5yr_sales$amount), "<br>",
+         "<b>Year Built:</b> ", nearli_5yr_sales$year_built, "<br>", 
+         "<b>Land Area:</b> ", nearli_5yr_sales$land_area, "<br>",
+         "<b>Square Footage:</b> ", nearli_5yr_sales$square_footage, "<br>",
+         "<b>Distance to Nearest Affordable Housing:</b> ", str_c(round(nearli_5yr_sales$dist, 3)), ' miles') %>%
+  lapply(htmltools::HTML)
+```
+
+```{r}
+groupCol <- colorFactor(palette = "Accent", nearli_5yr_sales$group)
+```
+
+
+```{r}
+map <- leaflet() %>%
+  addProviderTiles(providers$CartoDB.Voyager) %>%
+  setView(lng = median(nearli_5yr_sales$lon), 
+          lat = median(nearli_5yr_sales$lat), 
+          zoom = 10) %>%
+  setMaxBounds(lng1 = max(nearli_5yr_sales$lon) + 1, 
+               lat1 = max(nearli_5yr_sales$lat) + 1, 
+               lng2 = min(nearli_5yr_sales$lon) - 1, 
+               lat2 = min(nearli_5yr_sales$lat) - 1) %>%
+  addCircleMarkers(data = nearli_5yr_sales # %>% filter(~interactive filter here~)
+                   ,
+                   radius = 1.5,
+                   color = "white",
+                   weight = .5,
+                   fillColor = ~groupCol(group),
+                   fillOpacity = 2,
+                   label = ~label) %>% 
+  addLegend('bottomright', 
+            pal = groupCol, 
+            values = nearli_5yr_sales$group,
+            title = 'Home Sales Groups',
+            opacity = 1)
+
+map
+```
+
