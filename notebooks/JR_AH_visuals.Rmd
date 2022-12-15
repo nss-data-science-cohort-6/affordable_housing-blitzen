@@ -1,0 +1,78 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(dplyr)
+library(sf)
+library(tidyverse)
+```
+```{r}
+options(scipen = 999)
+```
+
+```{r}
+nearli_5yr_sales <- readRDS("../data/nearli_5yr_sales.rds")
+```
+
+# basic scatterplot of sales amount vs predicted sales amount
+```{r}
+ggplot(nearli_5yr_sales, aes(x=amount, y=predicted_amount)) + geom_point(color = "blue") + theme_bw() + ggtitle("Actual vs. Predicted Home Sales Amounts") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Homes Sales Amount") + ylab("Predicted Home Sales Amount")
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=li_id, y=predicted_amount)) + geom_point(color = "green") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Low Income ID") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income ID") + ylab("Predicted Sales Amount")
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=li_id, y=amount)) + geom_point(color = "purple") + theme_bw() + ggtitle("Home Sales Amounts by Low Income ID") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income ID") + ylab("Home Sales Amount")
+```
+
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dist, y=amount)) + geom_point(color = "orange") + theme_bw() + ggtitle("Home Sales Amounts by Distance from Low Income Development") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Home Sales Amount")
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount)) + geom_point(color = "black") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Distance from Low Income Development") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Predicted Home Sales Amount")
+```
+
+# heat map graphing
+```{r}
+ggplot(nearli_5yr_sales, aes(x=li_id, y=Tpost, fill=dif_pred_actual)) + geom_tile() + theme_bw() 
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=li_id, y=group, fill=amount)) + geom_tile() + theme_bw()
+```
+```{r}
+#nearli_5yr_sales <- nearli_5yr_sales %>% 
+          #mutate(amount = as.integer(amount),
+                 #predicted_amount = as.integer(predicted_amount))
+```
+
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dist, y=amount, fill=amount)) + geom_tile() + theme_bw()
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount, fill=predicted_amount)) + geom_tile() + theme_bw()
+```
+
+#line chart graphing distance and sales amount
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dist, y=amount)) + geom_line(color = "blue") + theme_bw() + ggtitle("Home Sales Amounts by Distance from Low Income Development") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Home Sales Amount")
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount)) + geom_line(color = "green") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Distance from Low Income Development") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Predicted Home Sales Amount")
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=Tpost, y=amount)) + geom_line(color = "orange") + theme_bw() + ggtitle("Home Sales Amounts by Tpost (years)") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Tpost (years)") + ylab("Home Sales Amount")
+```
+```{r}
+ggplot(nearli_5yr_sales, aes(x=li_id, y=amount)) + geom_line(color = "purple") + theme_bw() + ggtitle("Home Sales Amounts by Low Income Development ID") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development ID") + ylab("Home Sales Amount")
+```
+
