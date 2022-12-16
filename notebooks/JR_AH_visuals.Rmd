@@ -81,6 +81,6 @@ ggplot(nearli_5yr_sales, aes(x=li_id, y=amount)) + geom_line(color = "purple") +
 
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=dif_pred_actual)) + geom_histogram(color = "blue", fill="blue", bins=30) + theme_bw() + ggtitle("Distribution of Differences in Predicted and Actual Sales Amounts") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Predicted Sales Price - Actual Sales Price") + ylab("Count") + scale_x_continuous(breaks = seq(-350000, 350000, 100000), limits=c(-350000, 350000))
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Predicted Sales Price - Actual Sales Price") + ylab("Count") + scale_x_continuous(breaks = seq(-250000, 250000, 100000), limits=c(-250000, 250000))
 ```
 
