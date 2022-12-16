@@ -21,12 +21,12 @@ ggplot(nearli_5yr_sales, aes(x=amount, y=predicted_amount)) + geom_point(color =
   theme(plot.title = element_text(hjust = 0.5)) + xlab("Homes Sales Amount") + ylab("Predicted Home Sales Amount")
 ```
 ```{r}
-ggplot(nearli_5yr_sales, aes(x=li_id, y=predicted_amount)) + geom_point(color = "green") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Low Income ID") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income ID") + ylab("Predicted Sales Amount")
+ggplot(nearli_5yr_sales, aes(x=li_addr, y=predicted_amount)) + geom_point(color = "green") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Low Income Development Address") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development Address") + ylab("Predicted Sales Amount")
 ```
 ```{r}
-ggplot(nearli_5yr_sales, aes(x=li_id, y=amount)) + geom_point(color = "purple") + theme_bw() + ggtitle("Home Sales Amounts by Low Income ID") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income ID") + ylab("Home Sales Amount")
+ggplot(nearli_5yr_sales, aes(x=li_addr, y=amount)) + geom_point(color = "purple") + theme_bw() + ggtitle("Home Sales Amounts by Low Income Development Address") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development Address") + ylab("Home Sales Amount")
 ```
 
 ```{r}
@@ -40,19 +40,22 @@ ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount)) + geom_point(color = "
 
 # heat map graphing
 ```{r}
-ggplot(nearli_5yr_sales, aes(x=li_id, y=Tpost, fill=dif_pred_actual)) + geom_tile() + theme_bw() 
+ggplot(nearli_5yr_sales, aes(x=li_addr, y=Tpost, fill=dif_pred_actual)) + geom_tile() + theme_bw() 
 ```
 ```{r}
-ggplot(nearli_5yr_sales, aes(x=li_id, y=group, fill=amount)) + geom_tile() + theme_bw()
+ggplot(nearli_5yr_sales, aes(x=li_addr, y=group, fill=amount)) + geom_tile() + theme_bw()
 ```
 ```{r}
 #nearli_5yr_sales <- nearli_5yr_sales %>% 
           #mutate(amount = as.integer(amount),
                  #predicted_amount = as.integer(predicted_amount))
 ```
+```{r}
+typeof(nearli_5yr_sales$amount)
+```
 
 ```{r}
-ggplot(nearli_5yr_sales, aes(x=dist, y=amount, fill=amount)) + geom_tile() + theme_bw()
+ggplot(nearli_5yr_sales, aes(x=group, y=li_addr, fill=amount)) + geom_tile() + theme_bw() 
 ```
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount, fill=predicted_amount)) + geom_tile() + theme_bw()
@@ -74,5 +77,10 @@ ggplot(nearli_5yr_sales, aes(x=Tpost, y=amount)) + geom_line(color = "orange") +
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=li_id, y=amount)) + geom_line(color = "purple") + theme_bw() + ggtitle("Home Sales Amounts by Low Income Development ID") +
   theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development ID") + ylab("Home Sales Amount")
+```
+
+```{r}
+ggplot(nearli_5yr_sales, aes(x=dif_pred_actual)) + geom_histogram(color = "blue", fill="blue", bins=30) + theme_bw() + ggtitle("Distribution of Differences in Predicted and Actual Sales Amounts") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Predicted Sales Price - Actual Sales Price") + ylab("Count") + scale_x_continuous(breaks = seq(-350000, 350000, 100000), limits=c(-350000, 350000))
 ```
 
