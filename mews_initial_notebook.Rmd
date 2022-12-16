@@ -142,6 +142,23 @@ sales_li$dist <- distVincentyEllipsoid(cbind(sales_li$lon, sales_li$lat),
                                        cbind(sales_li$li_lng, sales_li$li_lat))/1609.344 #converting the distance from meters to miles
 ```
 
+```{r}
+#Additional filters we decided on: sale amount under $9000000 and square footage under 9000
+sales_li <- sales_li %>% 
+  mutate(Tpost = sale_yr - li_start_yr,
+         age = sale_yr - year_built,
+         tract = as.character(tract)) %>% 
+  filter(amount < 9000000,
+         square_footage < 9000)
+
+
+```
+
+```{r}
+#saveRDS(sales_li, file = "data/all_sale_li.rds")
+```
+
+
 3. Filter the homes down to those that are within one mile of an affordable housing development.
 ```{r}
 nearli_sales <- sales_li %>% 
@@ -179,9 +196,8 @@ nearli_sales <- nearli_sales %>%
 9. Filter down to only sales that took place within the five years before or after the associated development was placed in service.
 ```{r}
 nearli_5yr_sales <- nearli_sales %>% 
-                      mutate(Tpost = sale_yr - li_start_yr,
-                             age = sale_yr - year_built,
-                             tract = as.character(tract)) %>% 
+                      mutate(group = factor(group), 
+                             tract = factor(tract)) %>% 
                       filter(Tpost <= 5 & Tpost >= -5)
 glimpse(nearli_5yr_sales)
 ```
@@ -193,8 +209,9 @@ Then build a linear model with target variable the sales amount using the follow
 	- year 
 	- tract
 ```{r}
-reg1 <- lm(amount ~ square_footage + age + group + sale_yr + tract,
+reg1 <- lm(amount ~ square_footage + age + relevel(group, ref = 'outside') + sale_yr + tract,
            data = nearli_5yr_sales)
+anova(reg1)
 summary(reg1)
 ```
 Interpreting these coefficients:
@@ -207,12 +224,13 @@ sale amount = -1.353e+07 + 55.4(square footage) - 611.2(house age) - (value asso
 	- year
 	- tract
 ```{r}
-reg2 <- lm(log(amount) ~ square_footage + age + group + sale_yr + tract,
+reg2 <- lm(log(amount) ~ square_footage + age + relevel(group, ref = 'outside') + sale_yr + tract,
               data = nearli_5yr_sales)
+anova(reg2)
 summary(reg2)
 ```
 Interpreting these coefficients:
-log(sale amount) = -77.21 + 0.0002672(square footage) - 0.001800(house age) + (value associated w/ relevant group*) 
+log(sale amount) = -77.21 + 0.0002672(square footage) - 0.001800(house age) - (value associated w/ relevant group) 
                   + 0.04434(sale_yr) + (value associated w/ relevant tract*)
 *unlike in reg1, some of these values are positive, others are negative
 
@@ -222,15 +240,50 @@ I messed around with adding/removing/substituting a variety of variables. I foun
 
 ```{r}
 
-reg3 <- lm(log(amount) ~ square_footage + age + sale_yr + group + tract + li_id,
+reg3 <- lm(log(amount) ~ square_footage + age + sale_yr + relevel(group, ref = 'outside') + tract + li_id,
               data = nearli_5yr_sales)
+
+anova(reg3)
 summary(reg3)
 ```
+
+```{r}
+nearli_5yr_sales %>% 
+  mutate(predicted = predict(reg3, newdata = nearli_5yr_sales)) %>%
+  ggplot(aes(x = log(amount), y = predicted)) +
+    geom_point(na.rm = TRUE) +
+    scale_x_continuous(limits = c(6, 18)) +
+    scale_y_continuous(limits = c(6, 18))
+```
+```{r}
+library(scales)
+nearli_5yr_sales <- nearli_5yr_sales %>% 
+  mutate(predicted_amount = exp(predict(reg3, newdata = nearli_5yr_sales)),
+         dif_pred_actual = predicted_amount - amount,
+         amount_dol = dollar(amount),
+         predicted_amount_dol = dollar(predicted_amount),
+         dif_pred_actual_dol = dollar(dif_pred_actual))
+```
+```{r}
+#saveRDS(nearli_5yr_sales, file = "data/nearli_5yr_sales.rds")
+```
+
 
 ```{r}
 #saveRDS(nearli_sales, file = "data/nearli_sales.rds")
 ```
 
+```{r}
+li_addr_list <- nearli_5yr_sales %>% 
+  distinct(li_addr) %>% 
+  pull(li_addr)
 
+li_dev_map <- li_dev_sf %>%
+  filter(li_addr %in% li_addr_list) 
+```
+
+```{r}
+#saveRDS(li_dev_map, file = "data/li_dev_map.rds")
+```
 
 

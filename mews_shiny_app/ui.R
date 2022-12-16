@@ -19,7 +19,8 @@ ui <- dashboardPage(
     
     
     sidebarMenu(
-      menuItem("Map", icon = icon("glyphicon"), tabName = "Map",
+      menuItem("Map", #icon = icon("glyphicon"), 
+               tabName = "Map",
                badgeLabel = "new", badgeColor = "green"),
       menuItem('scatter plot', tabName = "plots")
     )
