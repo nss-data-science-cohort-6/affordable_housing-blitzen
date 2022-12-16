@@ -58,7 +58,7 @@ typeof(nearli_5yr_sales$amount)
 ggplot(nearli_5yr_sales, aes(x=group, y=li_addr, fill=amount)) + geom_tile() + theme_bw() 
 ```
 ```{r}
-ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount, fill=predicted_amount)) + geom_tile() + theme_bw()
+ggplot(nearli_5yr_sales, aes(x=Tpost, y=li_addr, fill=predicted_amount)) + geom_tile() + theme_bw()
 ```
 
 #line chart graphing distance and sales amount
