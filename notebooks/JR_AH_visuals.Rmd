@@ -18,24 +18,24 @@ nearli_5yr_sales <- readRDS("../data/nearli_5yr_sales.rds")
 # basic scatterplot of sales amount vs predicted sales amount
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=amount, y=predicted_amount)) + geom_point(color = "blue") + theme_bw() + ggtitle("Actual vs. Predicted Home Sales Amounts") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Homes Sales Amount") + ylab("Predicted Home Sales Amount")
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Homes Sales Amount") + ylab("Predicted Home Sales Amount") + scale_x_continuous(breaks = seq(0, 1000000, 100000), limits=c(0, 1000000)) + scale_y_continuous(breaks = seq(0, 1000000, 100000), limits=c(0, 1000000))
 ```
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=li_addr, y=predicted_amount)) + geom_point(color = "green") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Low Income Dev Address") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development Address") + ylab("Predicted Sales Amount")
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development Address") + ylab("Predicted Sales Amount") + scale_y_continuous(breaks = seq(0, 1000000, 100000), limits=c(0, 1000000))
 ```
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=li_addr, y=amount)) + geom_point(color = "purple") + theme_bw() + ggtitle("Home Sales Amounts by Low Income Development Address") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development Address") + ylab("Home Sales Amount")
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Low Income Development Address") + ylab("Home Sales Amount") + scale_y_continuous(breaks = seq(0, 1000000, 100000), limits=c(0, 1000000))
 ```
 
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=dist, y=amount)) + geom_point(color = "orange") + theme_bw() + ggtitle("Home Sales Amounts by Distance from Low Income Development") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Home Sales Amount")
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Home Sales Amount") + scale_y_continuous(breaks = seq(0, 1000000, 100000), limits=c(0, 1000000))
 ```
 ```{r}
 ggplot(nearli_5yr_sales, aes(x=dist, y=predicted_amount)) + geom_point(color = "black") + theme_bw() + ggtitle("Predicted Home Sales Amounts by Distance from Low Income Dev") +
-  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Predicted Home Sales Amount")
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Predicted Home Sales Amount") + scale_y_continuous(breaks = seq(0, 1000000, 100000), limits=c(0, 1000000))
 ```
 
 # heat map graphing
