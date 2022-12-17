@@ -1,0 +1,24 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(sf)
+library(tidyverse)
+```
+
+```{r}
+options(scipen = 999)
+```
+
+```{r}
+all_sale_li <- readRDS("../data/all_sale_li.rds")
+```
+
+```{r}
+ggplot(all_sale_li, aes(x=dist, y=amount)) + geom_point(color = "orange") + theme_bw() + ggtitle("Home Sales Amounts by Distance from Low Income Development") +
+  theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Home Sales Amount") + scale_x_continuous(breaks = seq(0, 10, 1), limits=c(0, 10))
+```
+
