@@ -8,6 +8,7 @@ library(scales)
 
 nearli_5yr_sales <- readRDS("../data/nearli_5yr_sales.rds")
 
+
 sales <- nearli_5yr_sales %>% st_drop_geometry() %>% 
   select(APN = apn,
             `Sale Amount` = amount_dol,
@@ -39,3 +40,19 @@ nearli_5yr_sales$label <-
 
 groupCol <- colorFactor(palette = "Accent", nearli_5yr_sales$group)
 
+li_dev_map <- readRDS("../data/li_dev_map.rds")
+
+li_dev_map$label <- 
+  paste0("<b>Development address:</b> ", li_dev_map$li_addr, "<br>",
+         "<b>Year came into service:</b> ", li_dev_map$li_start_yr, "<br>",
+         "<b>Total units:</b> ", li_dev_map$li_total_units, "<br>", 
+         "<b>Total low-income units:</b> ", li_dev_map$li_units) %>%
+  lapply(htmltools::HTML)
+
+map_icons <- awesomeIcons(
+  icon = 'building',
+  iconColor = 'white',
+  library = 'fa'
+)
+
+options(scipen = 999)

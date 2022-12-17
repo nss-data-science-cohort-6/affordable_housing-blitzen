@@ -1,3 +1,4 @@
+options(scipen = 999)
 
 shinyServer(function(input, output, session) {
   filtered_sales <- reactive({
@@ -16,7 +17,7 @@ shinyServer(function(input, output, session) {
                  filter(li_addr == input$li_addr))
       }
       else {
-        return(sales %>%
+        return(nearli_5yr_sales %>%
                  filter(group == input$ddlGroups,
                         li_addr == input$li_addr))
       }
@@ -64,6 +65,17 @@ shinyServer(function(input, output, session) {
     }
   })
   
+  r_li_dev_map <- reactive({
+    if (input$li_addr == 'All') {
+      return(li_dev_map)
+    }
+    
+    else {
+      return(li_dev_map %>% 
+               filter(li_addr == input$li_addr))
+    }
+  })
+  
   
   output$filteredSales <- renderDataTable(
     simplified_sales(),
@@ -88,6 +100,9 @@ shinyServer(function(input, output, session) {
                        fillColor = ~groupCol(group),
                        fillOpacity = 2,
                        label = ~label) %>%
+      addAwesomeMarkers(data = r_li_dev_map(),
+                        icon = map_icons,
+                        label = ~label) %>% 
       addLegend('bottomright',
                 pal = groupCol,
                 values = filtered_sales()$group,
@@ -95,4 +110,23 @@ shinyServer(function(input, output, session) {
                 opacity = 1)
 
   })
+  
+  output$actual_scatter <- renderPlot({
+    filtered_sales() %>% 
+      ggplot(aes(x=dist, y=amount)) + 
+      geom_point(color = "orange") + 
+      theme_bw() + 
+      ggtitle("Actual Sales Amount vs. Distance from Affordable Housing Development") +
+      theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Actual Sales Amount")
+  })
+  
+  output$predicted_scatter <- renderPlot({
+    filtered_sales() %>% 
+      ggplot(aes(x=dist, y=predicted_amount)) + 
+      geom_point(color = "black") + 
+      theme_bw() + 
+      ggtitle("Predicted Sales Amount vs. Distance from Affordable Housing Development") +
+      theme(plot.title = element_text(hjust = 0.5)) + xlab("Distance") + ylab("Predicted Sales Amount")
+  })
+  
 })
